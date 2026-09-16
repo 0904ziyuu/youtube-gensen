@@ -1,0 +1,692 @@
+<!DOCTYPE html>//厳選Youtube
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>チャンネル動画 viewer (時間限定版)</title>
+    <style>
+        :root {
+            --bg-color: #0f0f0f;
+            --card-bg: #212121;
+            --accent-color: #ff0000;
+            --accent-hover: #cc0000;
+            --text-main: #ffffff;
+            --text-sub: #aaaaaa;
+            --border-color: #333333;
+            --badge-rss: #0284c7;
+            --badge-api: #16a34a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background-color: var(--card-bg);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            text-align: center;
+        }
+
+        .header-title {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .time-notice {
+            font-size: 13px;
+            color: #f59e0b;
+            background-color: #291e0a;
+            border: 1px solid #78350f;
+            padding: 6px 12px;
+            border-radius: 20px;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+
+        /* 画面外ブロック画面 */
+        .blocked-screen {
+            padding: 50px 20px;
+            background-color: #1a1a1a;
+            border-radius: 16px;
+            border: 1px solid #333;
+        }
+
+        .blocked-title {
+            color: #ef4444;
+            font-size: 26px;
+            margin-bottom: 12px;
+        }
+
+        .blocked-desc {
+            color: var(--text-sub);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .current-clock {
+            margin-top: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .debug-toggle {
+            margin-top: 25px;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        /* 入力パネル */
+        .input-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+            background-color: #181818;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: left;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .input-label {
+            font-size: 13px;
+            color: var(--text-sub);
+            white-space: nowrap;
+            width: 100px;
+            text-align: right;
+        }
+
+        input[type="password"],
+        input[type="text"] {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background-color: #0a0a0a;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--accent-color);
+        }
+
+        .btn {
+            padding: 10px 18px;
+            background-color: var(--accent-color);
+            color: #ffffff;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* プリセットボタン */
+        .preset-container {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .preset-title {
+            font-size: 13px;
+            color: var(--text-sub);
+            margin-bottom: 8px;
+        }
+
+        .preset-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .preset-btn {
+            padding: 8px 14px;
+            background-color: #2a2a2a;
+            color: #eee;
+            border: 1px solid #444;
+            border-radius: 6px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .preset-btn:hover {
+            background-color: #383838;
+            border-color: #666;
+        }
+
+        .preset-btn.active {
+            background-color: var(--accent-color);
+            border-color: #ff4444;
+            color: #fff;
+        }
+
+        /* 動画プレイヤー */
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 12px;
+            background-color: #000000;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+        }
+
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        /* ステータスメッセージ & バッジ */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background-color: #141414;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .status-msg {
+            color: var(--text-sub);
+        }
+
+        .mode-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .badge-rss {
+            background-color: var(--badge-rss);
+        }
+
+        .badge-api {
+            background-color: var(--badge-api);
+        }
+
+        /* 動画グリッド */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 12px;
+            max-height: 420px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #141414;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .video-grid::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .video-grid::-webkit-scrollbar-thumb {
+            background-color: #444;
+            border-radius: 4px;
+        }
+
+        .video-card {
+            cursor: pointer;
+            text-align: left;
+            transition: transform 0.2s, border-color 0.2s, background-color 0.2s;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            padding: 6px;
+            background-color: #1e1e1e;
+        }
+
+        .video-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent-color);
+            background-color: #282828;
+        }
+
+        .video-card.playing {
+            border-color: var(--accent-color);
+            background-color: #331111;
+        }
+
+        .video-card img {
+            width: 100%;
+            border-radius: 6px;
+            aspect-ratio: 16/9;
+            object-fit: cover;
+            display: block;
+        }
+
+        .video-card .title {
+            font-size: 12px;
+            line-height: 1.4;
+            margin-top: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            color: #eeeeee;
+        }
+
+        @media (max-width: 600px) {
+            .input-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .input-label {
+                width: 100%;
+                text-align: left;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <!-- 【時間外用画面】 -->
+        <div id="blocked-section" class="blocked-screen" style="display: none;">
+            <h2 class="blocked-title">❌ 利用時間外です</h2>
+            <p class="blocked-desc">
+                このアプリケーションは指定の時間内のみご利用いただけます。<br>
+                <strong>利用可能時間: 21:00 〜 22:30</strong>
+            </p>
+            <div id="clock-display" class="current-clock">現在時刻: --:--:--</div>
+        </div>
+
+        <!-- 【利用許可時間内画面】 -->
+        <div id="allowed-section">
+            <h2 class="header-title">📺 チャンネル動画セレクター</h2>
+            <div class="time-notice">⏱️ 利用可能時間内です（21:00 〜 22:30）</div>
+
+            <!-- 入力パネル -->
+            <div class="input-panel">
+                <div class="input-row">
+                    <span class="input-label">APIキー(任意):</span>
+                    <input type="password" id="api-key" placeholder="未入力で最新15件 / 入力で全動画取得" autocomplete="off">
+                </div>
+                <div class="input-row">
+                    <span class="input-label">チャンネルURL/ID:</span>
+                    <input type="text" id="channel-input" placeholder="例: https://www.youtube.com/channel/UC... や UC...">
+                    <button class="btn" onclick="loadChannelFromInput()">動画を取得</button>
+                </div>
+            </div>
+
+            <!-- プリセット選択ボタン -->
+            <div class="preset-container">
+                <div class="preset-title">📌 登録済みチャンネル:</div>
+                <div id="preset-buttons" class="preset-buttons"></div>
+            </div>
+
+            <!-- 動画プレイヤー -->
+            <div class="video-container">
+                <iframe id="live-player" src="" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+            </div>
+
+            <!-- ステータス ＆ モード表示 -->
+            <div class="status-bar">
+                <span id="status-msg" class="status-msg">チャンネルを選択またはURLを入力してください。</span>
+                <span id="mode-badge" class="mode-badge badge-rss" style="display: none;">最新15件モード</span>
+            </div>
+
+            <!-- 動画一覧（サムネイル） -->
+            <div id="video-grid" class="video-grid"></div>
+        </div>
+
+    </div>
+
+    <script>
+
+        // プリセットチャンネルの設定（チャンネルID: UC...）
+        const PRESET_CHANNELS = [
+            { name: "まさのふろつぐ", id: "UCrk3BDRC9xzEFMj9cGly6pQ" },
+            { name: "BIGサイトウ", id: "UCT3tWrUcsXmpOEF39q0VGnA" },
+            { name: "まるり64", id: "UCYKJj4dLZuyS2TqcxFplmbw" },
+            { name: "くろこ", id: "UC4e7rsaJW-M7vr55lsDMjYQ" },
+            { name: "パデック", id: "UC4G6pPuFGGK0qf6c6RrSBTA" }
+        ];
+
+        let activeVideoId = null;
+        let isTimeOverridden = false; // テスト用時間制限解除フラグ
+
+        // 初期化処理
+        window.addEventListener('DOMContentLoaded', () => {
+            renderPresetButtons();
+            checkTime();
+            setInterval(checkTime, 3000);
+        });
+
+        // テスト用：時間制限の解除トグル
+        function toggleTimeOverride() {
+            isTimeOverridden = !isTimeOverridden;
+            checkTime();
+        }
+
+        // ==========================================
+        // 時間チェック機能 (21:00 〜 22:30 のみ許可)
+        // ==========================================
+        function checkTime() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes();
+            const currentMinutes = hours * 60 + minutes;
+
+            const startMinutes = 21 * 60;       // 21:00 (1260分)
+            const endMinutes = 22 * 60 + 30;    // 22:30 (1350分)
+
+            const isAllowed = isTimeOverridden || (currentMinutes >= startMinutes && currentMinutes <= endMinutes);
+
+            const allowedSection = document.getElementById('allowed-section');
+            const blockedSection = document.getElementById('blocked-section');
+
+            if (isAllowed) {
+                allowedSection.style.display = 'block';
+                blockedSection.style.display = 'none';
+            } else {
+                allowedSection.style.display = 'none';
+                blockedSection.style.display = 'block';
+
+                const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                document.getElementById('clock-display').textContent = `現在時刻: ${timeStr}`;
+            }
+        }
+
+        // プリセットボタンの生成
+        function renderPresetButtons() {
+            const container = document.getElementById('preset-buttons');
+            container.innerHTML = '';
+
+            PRESET_CHANNELS.forEach(ch => {
+                const btn = document.createElement('button');
+                btn.className = 'preset-btn';
+                btn.textContent = ch.name;
+                btn.onclick = () => {
+                    document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    document.getElementById('channel-input').value = ch.id;
+                    fetchVideos(ch.id);
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        // 手入力URLから動画読み込み
+        function loadChannelFromInput() {
+            const input = document.getElementById('channel-input').value.trim();
+            if (!input) {
+                setStatus('チャンネルURLまたはIDを入力してください。', true);
+                return;
+            }
+
+            const channelId = extractChannelId(input);
+            if (!channelId) {
+                setStatus('有効なチャンネルURLまたはIDではありません。(UC...で始まるIDが必要です)', true);
+                return;
+            }
+
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            fetchVideos(channelId);
+        }
+
+        // 動画取得の振り分け（APIキーの有無で自動切替）
+        async function fetchVideos(channelId) {
+            const apiKey = document.getElementById('api-key').value.trim();
+            const grid = document.getElementById('video-grid');
+            grid.innerHTML = '';
+
+            if (apiKey) {
+                // 【APIキーあり】YouTube Data API v3 で全動画を取得
+                updateBadge('API全動画モード', 'badge-api');
+                setStatus('全動画を取得中...');
+                await loadVideosViaAPI(channelId, apiKey);
+            } else {
+                // 【APIキーなし】RSS経由で最新15件を取得
+                updateBadge('最新15件モード (API未入力)', 'badge-rss');
+                setStatus('最新15件の動画を取得中...');
+                await loadVideosViaRSS(channelId);
+            }
+        }
+
+        // ==========================================
+        // モード1: APIキーなしの場合 (RSS経由: 二重フォールバック付)
+        // ==========================================
+        async function loadVideosViaRSS(channelId) {
+            const cleanChannelId = channelId.replace(/^UU/, 'UC');
+            const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${cleanChannelId}`;
+            
+            // ルート1: rss2json API を試行
+            try {
+                const apiUrl = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rssUrl)}`;
+                const res = await fetch(apiUrl);
+                const data = await res.json();
+
+                if (data.status === 'ok' && data.items && data.items.length > 0) {
+                    const formattedVideos = data.items.map(item => {
+                        const videoId = getVideoIdFromUrl(item.link);
+                        return {
+                            id: videoId,
+                            title: item.title,
+                            thumb: item.thumbnail || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+                        };
+                    }).filter(v => v.id);
+
+                    if (formattedVideos.length > 0) {
+                        setStatus(`最新 ${formattedVideos.length} 件の動画を取得しました！`);
+                        renderGrid(formattedVideos);
+                        playVideo(formattedVideos[0].id);
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.warn('rss2json API Failed, trying direct XML parser fallback...', e);
+            }
+
+            // ルート2: プロキシ経由で直接XMLを取得して解析 (rss2jsonが落ちている場合の予備)
+            try {
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(rssUrl)}`;
+                const res = await fetch(proxyUrl);
+                const xmlText = await res.text();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                const entries = xmlDoc.querySelectorAll("entry");
+
+                if (entries && entries.length > 0) {
+                    const formattedVideos = Array.from(entries).map(entry => {
+                        const videoIdEl = entry.querySelector("videoId") || entry.querySelector("yt\\:videoId");
+                        const videoId = videoIdEl ? videoIdEl.textContent : (entry.querySelector("id") ? entry.querySelector("id").textContent.split(':').pop() : null);
+                        const title = entry.querySelector("title") ? entry.querySelector("title").textContent : "";
+                        return {
+                            id: videoId,
+                            title: title,
+                            thumb: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+                        };
+                    }).filter(v => v.id && v.title);
+
+                    if (formattedVideos.length > 0) {
+                        setStatus(`最新 ${formattedVideos.length} 件の動画を取得しました！`);
+                        renderGrid(formattedVideos);
+                        playVideo(formattedVideos[0].id);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Fallback RSS Fetch Failed', err);
+            }
+
+            setStatus('動画の取得に失敗しました。チャンネルIDを確認するか、APIキーを入力してお試しください。', true);
+        }
+
+        // ==========================================
+        // モード2: APIキーありの場合 (API v3経由)
+        // ==========================================
+        async function loadVideosViaAPI(channelId, apiKey) {
+            const playlistId = channelId.startsWith('UC') ? 'UU' + channelId.slice(2) : channelId;
+
+            let allItems = [];
+            let nextPageToken = '';
+
+            try {
+                do {
+                    const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&playlistId=${playlistId}&maxResults=50&pageToken=${nextPageToken}&key=${apiKey}`;
+                    const res = await fetch(url);
+                    const data = await res.json();
+
+                    if (data.error) {
+                        throw new Error(data.error.message);
+                    }
+
+                    if (data.items) {
+                        allItems = allItems.concat(data.items);
+                    }
+                    nextPageToken = data.nextPageToken || '';
+                } while (nextPageToken);
+
+                const formattedVideos = allItems.map(item => {
+                    const videoId = item.snippet.resourceId.videoId;
+                    const title = item.snippet.title;
+                    const thumb = item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url;
+                    return { id: videoId, title: title, thumb: thumb };
+                }).filter(v => v.thumb && v.title !== 'Private video' && v.title !== 'Deleted video');
+
+                if (formattedVideos.length === 0) {
+                    setStatus('動画が見つかりませんでした。', true);
+                    return;
+                }
+
+                setStatus(`全 ${formattedVideos.length} 件の動画を取得しました！`);
+                renderGrid(formattedVideos);
+                if (formattedVideos.length > 0) {
+                    playVideo(formattedVideos[0].id);
+                }
+
+            } catch (err) {
+                console.error(err);
+                setStatus('APIエラーが発生しました。APIキーまたはIDをご確認ください。', true);
+            }
+        }
+
+        // ==========================================
+        // 共通・ヘルパー関数
+        // ==========================================
+
+        function extractChannelId(input) {
+            const channelMatch = input.match(/\/channel\/(UC[a-zA-Z0-9_-]+)/);
+            if (channelMatch) return channelMatch[1];
+
+            if (input.startsWith('UC') || input.startsWith('UU') || input.startsWith('PL')) {
+                return input;
+            }
+            return null;
+        }
+
+        function getVideoIdFromUrl(url) {
+            const match = url.match(/[?&]v=([^&]+)/);
+            return match ? match[1] : null;
+        }
+
+        function renderGrid(videos) {
+            const grid = document.getElementById('video-grid');
+            grid.innerHTML = '';
+
+            videos.forEach(v => {
+                const card = document.createElement('div');
+                card.className = 'video-card';
+                card.dataset.id = v.id;
+                card.onclick = () => playVideo(v.id);
+
+                card.innerHTML = `
+                    <img src="${v.thumb}" alt="thumbnail" loading="lazy">
+                    <div class="title">${escapeHtml(v.title)}</div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function playVideo(videoId) {
+            activeVideoId = videoId;
+            const player = document.getElementById('live-player');
+            player.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+
+            document.querySelectorAll('.video-card').forEach(card => {
+                if (card.dataset.id === videoId) {
+                    card.classList.add('playing');
+                    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    card.classList.remove('playing');
+                }
+            });
+        }
+
+        function setStatus(msg, isError = false) {
+            const el = document.getElementById('status-msg');
+            el.textContent = msg;
+            el.style.color = isError ? '#ff5555' : 'var(--text-sub)';
+        }
+
+        function updateBadge(text, className) {
+            const badge = document.getElementById('mode-badge');
+            badge.textContent = text;
+            badge.className = `mode-badge ${className}`;
+            badge.style.display = 'inline-block';
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
